@@ -26,4 +26,4 @@ and so on. Crazy!
 11. know
 12. tonight
 ````
-- I had the feeling that often, artist say their song title in the end of the refrain. But how often is this true? Actually, in 25% of cases, the song title can be found in the end of the refrain (only in 10% of cases, it is in the beginning). But very often, the song title is also sung in another part of the refrain.
+- I had the feeling that often, artist sing their song title in the end of the refrain. But how often is this true? Actually, in 25% of cases, the song title can be found in the end of the refrain (only in 10% of cases, it is in the beginning). But very often, the song title is also sung in another part of the refrain.
