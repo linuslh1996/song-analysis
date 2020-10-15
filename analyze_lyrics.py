@@ -1,6 +1,12 @@
 from typing import List, Dict, Optional
 import logging
+
+from tqdm import tqdm
+
+from helper import timeout
 from query_lyrics import SongLyric, SongLyricsStorage
+import query_lyrics as qul
+import os
 
 CHORUS_KEYS: List[str] = ["Hook", "Chorus"]
 
@@ -43,5 +49,4 @@ def load_songs() -> List[SongLyric]:
                                                  if any([key in song.lyric for key in CHORUS_KEYS])
                                                  and "[" in song.lyric]
     return songs_with_relevant_tags
-
 

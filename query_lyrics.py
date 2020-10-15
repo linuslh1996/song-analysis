@@ -10,6 +10,8 @@ import difflib
 import billboard
 import lyricsgenius
 from dataclasses_json import dataclass_json
+import helper as hlp
+import copy
 
 
 
@@ -25,6 +27,7 @@ class SongInfo:
     peak: int
     weeks: int
     start_date: datetime
+    length_in_seconds: Optional[int]
 
 
 @dataclass_json
@@ -50,10 +53,21 @@ class SongLyricsStorage:
         return all_lyrics.all_lyrics
 
     @staticmethod
+    def load_with_added_field() -> List[SongLyric]:
+        empty_instance: SongInfo = hlp.instanciate_empty_instance(SongInfo)
+        instance_variables: List[str] = hlp.get_variables_of_type(empty_instance)
+        stored_list_of_lyrics: Dict = json.load(SongLyricsStorage._get_file_path().open())
+        for lyric in stored_list_of_lyrics["all_lyrics"]:
+            for key in instance_variables:
+                if not key in list(lyric["song_info"].keys()):
+                    lyric["song_info"][key] = None
+        return SongLyricsStorage.from_dict(stored_list_of_lyrics).all_lyrics
+
+    @staticmethod
     def save(lyrics: List[SongLyric]):
         path: Path = SongLyricsStorage._get_file_path()
         with path.open("w+") as file:
-            file.write(SongLyric(lyrics).to_json(indent=4))
+            file.write(SongLyricsStorage(lyrics).to_json(indent=4))
 
 
 
@@ -61,12 +75,12 @@ class SongLyricsStorage:
 
 
 
-def get_song_lyrics() -> List[SongLyric]:
-    token: str = os.environ["GENIUS_TOKEN"]
+def get_song_lyrics(genius_token: str, spotify_token: str) -> List[SongLyric]:
     all_songs: List[SongInfo] = list(_query_songs_from_billboard().values())
     with ThreadPoolExecutor(max_workers=10) as executor:
-        results = list(executor.map(lambda song: _get_lyrics_of_song(song, token), all_songs))
-    return results
+        results: List[SongLyric] = list(executor.map(lambda song: _get_lyrics_of_song(song, genius_token), all_songs))
+        with_song_length: List[SongLyric] = list(executor.map(lambda lyric: _get_with_song_length(lyric, spotify_token), results))
+    return with_song_length
 
 
 
@@ -92,7 +106,7 @@ def _query_songs_from_billboard() -> Dict[str, SongInfo]:
                 all_songs[key].peak = song.peakPos
             else:
                 all_songs[key] = SongInfo(artist=song.artist, title=song.title, weeks=song.weeks, peak=song.peakPos,
-                                          start_date=start_date)
+                                          start_date=current_date)
         current_date += timedelta(days=60)
 
     # Filter: We only want to look at the popular songs.
@@ -141,3 +155,33 @@ def _get_lyrics_from_url(url: str, token: str) -> str:
     genius: lyricsgenius.Genius = lyricsgenius.Genius(token)
     song_lyrics: str = genius._scrape_song_lyrics_from_url(url)
     return song_lyrics
+
+
+
+# Get Length From Spotify
+
+
+
+def _get_with_song_length(lyric: SongLyric, token: str) -> SongLyric:
+    # Query Spotify Tracks For Song
+    url: str = "https://api.spotify.com/v1/search"
+    song_stringified: str = f"{lyric.song_info.title} by {lyric.song_info.artist}"
+    parameters: Dict[str, str] = {"q": f"{song_stringified}", "type": "track"}
+    headers: Dict[str, str] = {"Authorization": f"Bearer {token}"}
+    result: Dict = requests.get(url, params=parameters, headers=headers).json()
+
+    # Get Song Length
+    if len(result["tracks"]["items"]) == 0:
+        return lyric
+
+    length_in_ms: int = result["tracks"]["items"][0]["duration_ms"]
+    in_seconds: int = int(length_in_ms / 1000)
+
+    # Construct Result
+    new_lyric: SongLyric = copy.deepcopy(lyric)
+    new_lyric.song_info.length_in_seconds = in_seconds
+    return new_lyric
+
+
+
+
